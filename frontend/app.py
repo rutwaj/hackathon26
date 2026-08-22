@@ -2,6 +2,7 @@ import streamlit as st
 import csv
 import json
 import os
+import subprocess
 import PyPDF2
 
 
@@ -18,6 +19,51 @@ st.set_page_config(
 
 
 # ============================================================
+# PATHS
+# ============================================================
+
+# app.py is inside:
+# hackathon26/frontend/app.py
+#
+# Project structure:
+#
+# hackathon26/
+# ├── backend/
+# │   ├── financial_system.exe
+# │   ├── result.json
+# │   └── ...
+# │
+# └── frontend/
+#     └── app.py
+
+BASE_DIR = os.path.dirname(
+    os.path.dirname(
+        os.path.abspath(__file__)
+    )
+)
+
+BACKEND_DIR = os.path.join(
+    BASE_DIR,
+    "backend"
+)
+
+RESULT_JSON = os.path.join(
+    BACKEND_DIR,
+    "result.json"
+)
+
+EXTRACTED_TEXT = os.path.join(
+    BACKEND_DIR,
+    "extracted_text.txt"
+)
+
+FINANCIAL_ENGINE = os.path.join(
+    BACKEND_DIR,
+    "financial_system.exe"
+)
+
+
+# ============================================================
 # DOCUMENT READERS
 # ============================================================
 
@@ -27,7 +73,12 @@ def read_txt(file):
 
 def read_csv(file):
     content = file.read().decode("utf-8")
-    rows = list(csv.reader(content.splitlines()))
+
+    rows = list(
+        csv.reader(
+            content.splitlines()
+        )
+    )
 
     text = ""
 
@@ -39,7 +90,11 @@ def read_csv(file):
 
 def read_json(file):
     data = json.load(file)
-    return json.dumps(data, indent=2)
+
+    return json.dumps(
+        data,
+        indent=2
+    )
 
 
 def read_pdf(file):
@@ -48,6 +103,7 @@ def read_pdf(file):
     text = ""
 
     for page in reader.pages:
+
         page_text = page.extract_text()
 
         if page_text:
@@ -81,19 +137,259 @@ def read_document(file):
 
 def save_extracted_text(text):
 
-    path = os.path.join(
-        os.getcwd(),
-        "extracted_text.txt"
+    os.makedirs(
+        BACKEND_DIR,
+        exist_ok=True
     )
 
     with open(
-        path,
+        EXTRACTED_TEXT,
         "w",
         encoding="utf-8"
     ) as file:
+
         file.write(text)
 
-    return path
+    return EXTRACTED_TEXT
+
+
+# ============================================================
+# RUN C BACKEND
+# ============================================================
+
+def run_c_backend():
+
+    if not os.path.exists(FINANCIAL_ENGINE):
+
+        return False, (
+            "C financial engine was not found at:\n"
+            + FINANCIAL_ENGINE
+        )
+
+    try:
+
+        process = subprocess.run(
+            [FINANCIAL_ENGINE],
+            cwd=BACKEND_DIR,
+            capture_output=True,
+            text=True
+        )
+
+        if process.returncode != 0:
+
+            return False, (
+                "C backend failed.\n\n"
+                + process.stdout
+                + "\n"
+                + process.stderr
+            )
+
+        if not os.path.exists(RESULT_JSON):
+
+            return False, (
+                "C backend finished, but result.json "
+                "was not generated."
+            )
+
+        return True, process.stdout
+
+    except Exception as e:
+
+        return False, str(e)
+
+
+# ============================================================
+# LOAD C JSON RESULT
+# ============================================================
+
+def load_c_results():
+
+    if not os.path.exists(RESULT_JSON):
+        return None
+
+    try:
+
+        with open(
+            RESULT_JSON,
+            "r",
+            encoding="utf-8"
+        ) as file:
+
+            return json.load(file)
+
+    except Exception as e:
+
+        st.error(
+            f"Could not read result.json: {e}"
+        )
+
+        return None
+
+
+# ============================================================
+# NORMALIZE C RESULT FOR UI
+# ============================================================
+
+def normalize_results(data):
+
+    if not data:
+
+        return {
+            "name": "",
+            "trust_score": 0,
+            "income": 0,
+            "net_salary": 0,
+            "bank_salary": 0,
+            "loan_amount": 0,
+            "loan_outstanding": 0,
+            "emi": 0,
+            "dti": 0,
+            "risk_level": "UNKNOWN",
+            "income_score": 0,
+            "debt_score": 0,
+            "completeness_score": 0,
+            "identity_score": 0,
+            "missing_fields": 0,
+            "inconsistent_fields": 0,
+            "suspicious_fields": 0,
+            "documents_processed": 0,
+            "findings": []
+        }
+
+    profile = data.get(
+        "profile",
+        {}
+    )
+
+    scoring = data.get(
+        "scoring",
+        {}
+    )
+
+    validation = data.get(
+        "validation",
+        {}
+    )
+
+    documents = data.get(
+        "documents",
+        {}
+    )
+
+    findings = data.get(
+        "findings",
+        []
+    )
+
+    return {
+
+        "name": profile.get(
+            "name",
+            ""
+        ),
+
+        "net_salary": profile.get(
+            "net_salary",
+            0
+        ),
+
+        "income": profile.get(
+            "net_salary",
+            data.get(
+                "income",
+                0
+            )
+        ),
+
+        "bank_salary": profile.get(
+            "bank_salary",
+            0
+        ),
+
+        "loan_amount": profile.get(
+            "loan_amount",
+            0
+        ),
+
+        "loan_outstanding": profile.get(
+            "loan_outstanding",
+            data.get(
+                "loan_outstanding",
+                0
+            )
+        ),
+
+        "emi": profile.get(
+            "emi",
+            data.get(
+                "emi",
+                0
+            )
+        ),
+
+        "dti": scoring.get(
+            "dti",
+            data.get(
+                "dti",
+                0
+            )
+        ),
+
+        "trust_score": scoring.get(
+            "trust_score",
+            data.get(
+                "trust_score",
+                0
+            )
+        ),
+
+        "risk_level": scoring.get(
+            "risk_level",
+            "UNKNOWN"
+        ),
+
+        "income_score": scoring.get(
+            "income_score",
+            0
+        ),
+
+        "debt_score": scoring.get(
+            "debt_score",
+            0
+        ),
+
+        "completeness_score": scoring.get(
+            "completeness_score",
+            0
+        ),
+
+        "identity_score": scoring.get(
+            "identity_score",
+            0
+        ),
+
+        "missing_fields": validation.get(
+            "missing_fields",
+            0
+        ),
+
+        "inconsistent_fields": validation.get(
+            "inconsistent_fields",
+            0
+        ),
+
+        "suspicious_fields": validation.get(
+            "suspicious_fields",
+            0
+        ),
+
+        "documents_processed": documents.get(
+            "documents_processed",
+            0
+        ),
+
+        "findings": findings
+    }
 
 
 # ============================================================
@@ -121,15 +417,24 @@ def analyze_documents(documents):
             if text1 and text1 == text2:
 
                 findings.append({
-                    "type": "Duplicate Document",
-                    "severity": "MEDIUM",
-                    "confidence": 100,
+
+                    "type":
+                        "Duplicate Document",
+
+                    "severity":
+                        "MEDIUM",
+
+                    "confidence":
+                        100,
+
                     "documents": [
                         doc1["name"],
                         doc2["name"]
                     ],
+
                     "description":
                         "These documents contain identical text.",
+
                     "explanation":
                         "The extracted text from both documents "
                         "is identical."
@@ -144,14 +449,24 @@ def analyze_documents(documents):
         if not document["text"].strip():
 
             findings.append({
-                "type": "Empty / Unreadable Document",
-                "severity": "HIGH",
-                "confidence": 95,
+
+                "type":
+                    "Empty / Unreadable Document",
+
+                "severity":
+                    "HIGH",
+
+                "confidence":
+                    95,
+
                 "documents": [
                     document["name"]
                 ],
+
                 "description":
-                    "No readable text was extracted from this document.",
+                    "No readable text was extracted from "
+                    "this document.",
+
                 "explanation":
                     "The document may be scanned, image-based, "
                     "corrupted, or otherwise unreadable."
@@ -167,13 +482,22 @@ def analyze_documents(documents):
 # ============================================================
 
 demo_results = {
-    "trust_score": 82,
-    "income": 68000,
-    "loan_outstanding": 720000,
-    "emi": 23500,
-    "dti": 34.5,
+
+    "name": "",
+    "trust_score": 0,
+    "income": 0,
+    "net_salary": 0,
+    "bank_salary": 0,
+    "loan_amount": 0,
+    "loan_outstanding": 0,
+    "emi": 0,
+    "dti": 0,
+    "risk_level": "UNKNOWN",
     "documents_processed": 0,
-    "findings": []
+    "findings": [],
+    "missing_fields": 0,
+    "inconsistent_fields": 0,
+    "suspicious_fields": 0
 }
 
 
@@ -185,19 +509,10 @@ st.markdown(
     """
     <style>
 
-    /* ======================================================
-       GLOBAL
-       ====================================================== */
-
     .block-container {
         padding-top: 2rem;
         padding-bottom: 3rem;
     }
-
-
-    /* ======================================================
-       SIDEBAR
-       ====================================================== */
 
     section[data-testid="stSidebar"] {
         border-right: 1px solid rgba(128, 128, 128, 0.18);
@@ -240,52 +555,6 @@ st.markdown(
         margin: 0 8px 8px 8px;
     }
 
-    div[role="radiogroup"] {
-        gap: 5px;
-    }
-
-    div[role="radiogroup"] label {
-        position: relative;
-        border-radius: 10px;
-        padding: 10px 12px !important;
-        margin: 0 !important;
-        border: 1px solid transparent;
-        transition: all 0.15s ease;
-        cursor: pointer;
-    }
-
-    div[role="radiogroup"] label:hover {
-        background: rgba(128, 128, 128, 0.10);
-    }
-
-    /* ACTIVE NAVIGATION ITEM */
-
-    div[role="radiogroup"] label:has(input:checked) {
-        background: rgba(99, 102, 241, 0.16);
-        border: 1px solid rgba(99, 102, 241, 0.28);
-        font-weight: 600;
-    }
-
-    /* ACTIVE PIN */
-
-    div[role="radiogroup"] label:has(input:checked)::before {
-        content: "";
-        position: absolute;
-        left: 3px;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 4px;
-        height: 24px;
-        border-radius: 10px;
-        background: #6366f1;
-    }
-
-    /* Hide radio button */
-
-    div[role="radiogroup"] label > div:first-child {
-        display: none;
-    }
-
     .sidebar-footer {
         display: flex;
         align-items: center;
@@ -315,11 +584,6 @@ st.markdown(
         margin-top: 2px;
     }
 
-
-    /* ======================================================
-       CARDS
-       ====================================================== */
-
     .info-card {
         padding: 20px;
         border-radius: 14px;
@@ -327,19 +591,6 @@ st.markdown(
         background: rgba(128, 128, 128, 0.04);
         margin-bottom: 15px;
     }
-
-    .graph-card {
-        padding: 30px;
-        border-radius: 16px;
-        border: 1px solid rgba(128, 128, 128, 0.18);
-        text-align: center;
-        margin-top: 15px;
-    }
-
-
-    /* ======================================================
-       HERO
-       ====================================================== */
 
     .hero {
         padding: 28px;
@@ -360,11 +611,6 @@ st.markdown(
         opacity: 0.65;
     }
 
-
-    /* ======================================================
-       TRUST SCORE
-       ====================================================== */
-
     .score-number {
         font-size: 48px;
         font-weight: 750;
@@ -375,11 +621,6 @@ st.markdown(
         font-size: 13px;
         opacity: 0.55;
     }
-
-
-    /* ======================================================
-       FOOTER
-       ====================================================== */
 
     .footer {
         text-align: center;
@@ -421,24 +662,22 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 
-
 st.sidebar.markdown(
     "<div class='nav-label'>NAVIGATION</div>",
     unsafe_allow_html=True
 )
 
 
-# ============================================================
-# SIDEBAR NAVIGATION
-# ============================================================
-
 if "page" not in st.session_state:
+
     st.session_state.page = "📊  Dashboard"
 
 
 def navigation_button(label):
 
-    is_active = st.session_state.page == label
+    is_active = (
+        st.session_state.page == label
+    )
 
     if is_active:
 
@@ -453,6 +692,7 @@ def navigation_button(label):
                 font-weight: 600;
                 position: relative;
             ">
+
                 <span style="
                     position: absolute;
                     left: 3px;
@@ -467,6 +707,7 @@ def navigation_button(label):
                 <span style="margin-left: 8px;">
                     {label}
                 </span>
+
             </div>
             """,
             unsafe_allow_html=True
@@ -482,12 +723,6 @@ def navigation_button(label):
 
         st.session_state.page = label
         st.rerun()
-
-
-st.sidebar.markdown(
-    "<div class='nav-label'>NAVIGATION</div>",
-    unsafe_allow_html=True
-)
 
 
 navigation_button("📊  Dashboard")
@@ -526,10 +761,12 @@ st.sidebar.markdown(
 # ============================================================
 
 if "documents" not in st.session_state:
+
     st.session_state.documents = []
 
 
 if "results" not in st.session_state:
+
     st.session_state.results = demo_results.copy()
 
 
@@ -565,40 +802,51 @@ if page == "📊  Dashboard":
     col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
+
         st.metric(
             "Documents",
-            results.get("documents_processed", 0)
+            results.get(
+                "documents_processed",
+                0
+            )
         )
 
     with col2:
+
         st.metric(
             "Trust Score",
-            f"{results.get('trust_score', 0)}/100"
+            f"{results.get('trust_score', 0):.0f}/100"
         )
 
     with col3:
+
         st.metric(
             "Monthly Income",
             f"₹{results.get('income', 0):,.0f}"
         )
 
     with col4:
+
         st.metric(
             "Loan Outstanding",
             f"₹{results.get('loan_outstanding', 0):,.0f}"
         )
 
     with col5:
+
         st.metric(
             "Debt-to-Income",
-            f"{results.get('dti', 0)}%"
+            f"{results.get('dti', 0):.2f}%"
         )
 
     st.divider()
 
     st.header("Financial Trust Score")
 
-    score = results.get("trust_score", 0)
+    score = results.get(
+        "trust_score",
+        0
+    )
 
     col1, col2 = st.columns([1, 2])
 
@@ -609,7 +857,7 @@ if page == "📊  Dashboard":
             <div class="info-card">
 
                 <div class="score-number">
-                    {score}/100
+                    {score:.0f}/100
                 </div>
 
                 <div class="score-label">
@@ -626,28 +874,48 @@ if page == "📊  Dashboard":
         st.write("Confidence level")
 
         st.progress(
-            max(0, min(score, 100)) / 100
+            max(
+                0,
+                min(
+                    score,
+                    100
+                )
+            ) / 100
         )
 
-        if score >= 80:
+        risk = results.get(
+            "risk_level",
+            "UNKNOWN"
+        )
+
+        if risk == "LOW":
 
             st.success(
-                "🟢 HIGH CONFIDENCE — Financial information "
+                "🟢 LOW RISK — Financial information "
                 "is largely consistent."
             )
 
-        elif score >= 60:
+        elif risk == "MODERATE":
 
             st.warning(
-                "🟡 REVIEW RECOMMENDED — Some inconsistencies "
+                "🟡 MODERATE RISK — Some inconsistencies "
                 "were detected."
+            )
+
+        elif risk in [
+            "HIGH",
+            "CRITICAL"
+        ]:
+
+            st.error(
+                f"🔴 {risk} RISK — Significant "
+                "inconsistencies were detected."
             )
 
         else:
 
-            st.error(
-                "🔴 HIGH RISK — Significant inconsistencies "
-                "were detected."
+            st.info(
+                "Analysis has not been completed yet."
             )
 
     st.divider()
@@ -656,29 +924,43 @@ if page == "📊  Dashboard":
 
     high_count = sum(
         f.get("severity") == "HIGH"
-        for f in results.get("findings", [])
+        for f in results.get(
+            "findings",
+            []
+        )
     )
 
     medium_count = sum(
         f.get("severity") == "MEDIUM"
-        for f in results.get("findings", [])
+        for f in results.get(
+            "findings",
+            []
+        )
     )
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
+
         st.metric(
             "Total Findings",
-            len(results.get("findings", []))
+            len(
+                results.get(
+                    "findings",
+                    []
+                )
+            )
         )
 
     with col2:
+
         st.metric(
             "High Severity",
             high_count
         )
 
     with col3:
+
         st.metric(
             "Medium Severity",
             medium_count
@@ -698,7 +980,9 @@ if page == "📊  Dashboard":
 
                 <h4>💰 Income</h4>
 
-                <h2>₹{results.get('income', 0):,.0f}</h2>
+                <h2>
+                    ₹{results.get('income', 0):,.0f}
+                </h2>
 
                 <p>Monthly net income</p>
 
@@ -715,7 +999,9 @@ if page == "📊  Dashboard":
 
                 <h4>🏠 Outstanding Loan</h4>
 
-                <h2>₹{results.get('loan_outstanding', 0):,.0f}</h2>
+                <h2>
+                    ₹{results.get('loan_outstanding', 0):,.0f}
+                </h2>
 
                 <p>Current outstanding amount</p>
 
@@ -732,7 +1018,9 @@ if page == "📊  Dashboard":
 
                 <h4>📊 Monthly EMI</h4>
 
-                <h2>₹{results.get('emi', 0):,.0f}</h2>
+                <h2>
+                    ₹{results.get('emi', 0):,.0f}
+                </h2>
 
                 <p>Current monthly obligation</p>
 
@@ -751,14 +1039,20 @@ elif page == "📄  Documents":
     st.title("📄 Financial Documents")
 
     st.caption(
-        "Upload TXT, CSV, JSON or PDF documents for verification."
+        "Upload TXT, CSV, JSON or PDF documents "
+        "for verification."
     )
 
     st.divider()
 
     uploaded_files = st.file_uploader(
         "Choose documents",
-        type=["txt", "csv", "json", "pdf"],
+        type=[
+            "txt",
+            "csv",
+            "json",
+            "pdf"
+        ],
         accept_multiple_files=True
     )
 
@@ -780,19 +1074,22 @@ elif page == "📄  Documents":
                 })
 
                 st.success(
-                    f"✅ {file.name} uploaded and read successfully."
+                    f"✅ {file.name} uploaded "
+                    "and read successfully."
                 )
 
             except Exception as e:
 
                 st.error(
-                    f"❌ Error reading {file.name}: {e}"
+                    f"❌ Error reading "
+                    f"{file.name}: {e}"
                 )
 
         st.session_state.documents = documents
 
         st.write(
-            f"📁 **{len(documents)} document(s) loaded**"
+            f"📁 **{len(documents)} "
+            "document(s) loaded**"
         )
 
         st.subheader("📜 Extracted Text")
@@ -808,7 +1105,7 @@ elif page == "📄  Documents":
                 )
 
         # ----------------------------------------------------
-        # CREATE extracted_text.txt
+        # SAVE TEXT FOR C BACKEND
         # ----------------------------------------------------
 
         if documents:
@@ -821,7 +1118,9 @@ elif page == "📄  Documents":
                     f"\n--- {document['name']} ---\n"
                 )
 
-                combined_text += document["text"]
+                combined_text += (
+                    document["text"]
+                )
 
                 combined_text += "\n"
 
@@ -830,11 +1129,12 @@ elif page == "📄  Documents":
             )
 
             st.success(
-                "✅ extracted_text.txt created for the C backend."
+                "✅ Documents prepared for "
+                "the C backend."
             )
 
             st.caption(
-                f"Location: {extracted_path}"
+                f"Backend input: {extracted_path}"
             )
 
         st.divider()
@@ -845,62 +1145,64 @@ elif page == "📄  Documents":
         ):
 
             with st.spinner(
-                "Analyzing financial documents..."
+                "Running C financial engine..."
             ):
 
-                analysis = analyze_documents(
-                    documents
+                success, output = (
+                    run_c_backend()
                 )
 
-                findings = analysis["findings"]
+                if success:
 
-                score = 100
+                    c_data = load_c_results()
 
-                for finding in findings:
+                    if c_data:
 
-                    if finding.get("severity") == "HIGH":
-                        score -= 25
+                        results = normalize_results(
+                            c_data
+                        )
 
-                    elif finding.get("severity") == "MEDIUM":
-                        score -= 10
+                        results[
+                            "documents_processed"
+                        ] = len(documents)
 
-                score = max(
-                    0,
-                    min(score, 100)
-                )
+                        st.session_state.results = (
+                            results
+                        )
 
-                st.session_state.results = {
+                        st.success(
+                            "✅ C backend analysis "
+                            "completed successfully!"
+                        )
 
-                    "trust_score": score,
+                        st.info(
+                            "The dashboard is now "
+                            "displaying results generated "
+                            "by the C backend."
+                        )
 
-                    "income": 68000,
+                    else:
 
-                    "loan_outstanding": 720000,
+                        st.error(
+                            "❌ result.json could "
+                            "not be loaded."
+                        )
 
-                    "emi": 23500,
+                else:
 
-                    "dti": 34.5,
+                    st.error(
+                        "❌ C backend failed."
+                    )
 
-                    "documents_processed": len(documents),
-
-                    "findings": findings
-                }
-
-                results = st.session_state.results
-
-            st.success(
-                "✅ Analysis completed successfully!"
-            )
-
-            st.info(
-                "Open Dashboard, Findings or Evidence "
-                "from the sidebar to view the results."
-            )
+                    st.code(
+                        output
+                    )
 
     else:
 
         st.info(
-            "Upload one or more documents to begin."
+            "Upload one or more documents "
+            "to begin."
         )
 
 
@@ -976,18 +1278,20 @@ elif page == "⚠️  Findings":
                     f"{confidence}% confidence"
                 )
 
-            st.write(
-                "**Documents:** "
-                + ", ".join(
-                    finding.get(
-                        "documents",
-                        []
-                    )
-                )
+            documents = finding.get(
+                "documents",
+                []
             )
 
+            if documents:
+
+                st.write(
+                    "*Documents:* "
+                    + ", ".join(documents)
+                )
+
             st.write(
-                "**Description:** "
+                "*Description:* "
                 + finding.get(
                     "description",
                     ""
@@ -1005,10 +1309,18 @@ elif page == "⚠️  Findings":
                     )
                 )
 
-                st.write("Confidence")
+                st.write(
+                    "Confidence"
+                )
 
                 st.progress(
-                    confidence / 100
+                    max(
+                        0,
+                        min(
+                            confidence,
+                            100
+                        )
+                    ) / 100
                 )
 
             st.divider()
@@ -1023,7 +1335,8 @@ elif page == "🔍  Evidence":
     st.title("🔍 Evidence & Verification")
 
     st.caption(
-        "See exactly why FinVerify detected an inconsistency."
+        "See exactly why FinVerify detected "
+        "an inconsistency."
     )
 
     st.divider()
@@ -1036,7 +1349,8 @@ elif page == "🔍  Evidence":
     if not findings:
 
         st.success(
-            "✅ No evidence of inconsistencies is currently available."
+            "✅ No evidence of inconsistencies "
+            "is currently available."
         )
 
     else:
@@ -1059,12 +1373,12 @@ elif page == "🔍  Evidence":
             if documents:
 
                 st.write(
-                    "**Source Documents:** "
+                    "*Source Documents:* "
                     + ", ".join(documents)
                 )
 
             st.write(
-                "**Why it was flagged:**"
+                "*Why it was flagged:*"
             )
 
             st.info(
@@ -1087,14 +1401,22 @@ elif page == "🔍  Evidence":
             )
 
             st.progress(
-                confidence / 100
+                max(
+                    0,
+                    min(
+                        confidence,
+                        100
+                    )
+                ) / 100
             )
 
             st.divider()
 
     if st.session_state.documents:
 
-        st.header("📜 Extracted Document Evidence")
+        st.header(
+            "📜 Extracted Document Evidence"
+        )
 
         for document in st.session_state.documents:
 
@@ -1116,7 +1438,8 @@ st.divider()
 st.header("💬 Ask Your Documents")
 
 st.caption(
-    "Quick answers based on the analyzed financial profile."
+    "Quick answers based on the analyzed "
+    "financial profile."
 )
 
 question = st.selectbox(
@@ -1187,14 +1510,14 @@ if question != "Select a question...":
 
         st.info(
             f"📊 Your debt-to-income ratio is "
-            f"{results.get('dti', 0)}%."
+            f"{results.get('dti', 0):.2f}%."
         )
 
     elif question == "What is my Financial Trust Score?":
 
         st.info(
             f"🔐 Your Financial Trust Score is "
-            f"{results.get('trust_score', 0)}/100."
+            f"{results.get('trust_score', 0):.0f}/100."
         )
 
 
