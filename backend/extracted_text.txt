@@ -1,0 +1,6 @@
+Employee: Priya Kumar
+Net Salary: Rs. 68,000
+Salary Credit: Rs. 67,500
+Loan Amount: Rs. 500,000
+Outstanding Loan: Rs. 320,000
+EMI: Rs. 12,000
