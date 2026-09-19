@@ -1,25 +1,58 @@
 #ifndef PROFILE_H
 #define PROFILE_H
 
-typedef struct {
-    char name[100];
-    char account_number[50];
-    char employer[100];
+#define MAX_NAME 100
 
-    double monthly_income;
-    double monthly_expenses;
+typedef struct
+{
+    /* =====================================================
+       FINANCIAL INFORMATION EXTRACTED BY PARSER
+       ===================================================== */
 
+    char name[MAX_NAME];
+
+    double net_salary;
+    double bank_salary;
     double loan_amount;
     double outstanding_loan;
+    double emi;
 
-    double insurance_amount;
+
+    /* =====================================================
+       PARSER STATUS FLAGS
+       ===================================================== */
+
+    int name_found;
+    int net_salary_found;
+    int bank_salary_found;
+    int loan_amount_found;
+    int outstanding_loan_found;
+    int emi_found;
+
+
+    /* =====================================================
+       VALIDATION RESULTS
+       ===================================================== */
 
     int missing_fields;
     int inconsistent_fields;
     int suspicious_fields;
 
-    double reliability_score;
-    double risk_score;
+
+    /* =====================================================
+       SCORING RESULTS
+       ===================================================== */
+
+    double dti;
+
+    double income_score;
+    double debt_score;
+    double completeness_score;
+    double identity_score;
+
+    double trust_score;
+
+    char risk_level[20];
 
 } FinancialProfile;
 

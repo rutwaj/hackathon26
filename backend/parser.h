@@ -1,11 +1,18 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#include "document.h"
 #include "profile.h"
 
+/*
+ * Extracts financial information from a document
+ * and stores the results in FinancialProfile.
+ *
+ * Returns:
+ * 0  -> successful parsing
+ * 1  -> document could not be opened
+ */
 int parse_document(
-    Document *document,
+    const char *filename,
     FinancialProfile *profile
 );
 
