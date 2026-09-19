@@ -1,0 +1,31 @@
+{
+    "trust_score": 82,
+    "income": 68000,
+    "loan_outstanding": 720000,
+    "emi": 23500,
+    "dti": 34.5,
+    "documents_processed": 3,
+    "findings": [
+        {
+            "type": "Income Mismatch",
+            "severity": "HIGH",
+            "confidence": 94,
+            "documents": [
+                "salary_slip.pdf",
+                "bank_statement.pdf"
+            ],
+            "description": "Declared salary differs from recurring salary credits.",
+            "explanation": "The salary declared in the salary slip differs from the recurring salary credit found in the bank statement."
+        },
+        {
+            "type": "Missing Information",
+            "severity": "MEDIUM",
+            "confidence": 78,
+            "documents": [
+                "loan_document.pdf"
+            ],
+            "description": "Some required loan information was not found.",
+            "explanation": "Some required loan information was not found in the submitted documents."
+        }
+    ]
+}

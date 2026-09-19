@@ -1,0 +1,24 @@
+{
+    "profile": {
+        "name": "",
+        "net_salary": 0.00,
+        "bank_salary": 0.00,
+        "loan_amount": 0.00,
+        "loan_outstanding": 0.00,
+        "emi": 0.00
+    },
+    "validation": {
+        "missing_fields": 6,
+        "inconsistent_fields": 0,
+        "suspicious_fields": 0
+    },
+    "scoring": {
+        "dti": 100.00,
+        "income_score": 0.00,
+        "debt_score": 10.00,
+        "completeness_score": 0.00,
+        "identity_score": 0.00,
+        "trust_score": 2.50,
+        "risk_level": "CRITICAL"
+    }
+}
